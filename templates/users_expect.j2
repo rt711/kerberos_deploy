@@ -1,0 +1,30 @@
+#!/usr/bin/expect -f
+#
+
+set force_conservative 0  ;# set to 1 to force conservative mode even if
+			  ;# script wasn't run conservatively originally
+if {$force_conservative} {
+	set send_slow {1 .1}
+	proc send {ignore arg} {
+		sleep .1
+		exp_send -s -- $arg
+	}
+}
+
+{% for r in REALM_USERS -%}
+{% set R = r.upper()  -%}
+{% for x,y in REALM_USERS[r].items() -%}
+{% set b = [x,'@',R]|join() %}
+{% if b not in principals.stdout_lines -%} 
+set timeout -1
+spawn kadmin.local add_principal -policy users {{x}}
+match_max 100000
+expect -exact "Enter password for principal \"{{b}}\": "
+send -- "{{y}}\r"
+expect -exact "Re-enter password for principal \"{{b}}\": "
+send -- "{{y}}\r"
+expect eof
+{% endif %}
+{% endfor %}
+{% endfor %}
+

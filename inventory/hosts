@@ -1,0 +1,2 @@
+[krb_server]
+kerb01 ansible_host=TargetKerberosIP ansible_python_interpreter=/usr/bin/python3

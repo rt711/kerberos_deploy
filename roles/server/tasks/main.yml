@@ -1,0 +1,108 @@
+---
+# tasks file for krb5
+- name: Install Kerberos Server
+  apt:
+      name: 
+        - "krb5-kdc"
+        - "krb5-admin-server"
+        - "krb5-config"
+        - "expect"
+      state: present
+  become: yes
+
+- name: Start/Enable Kerberos Services
+  systemd:
+    name: krb5-admin-server.service
+    state: started
+    enabled: yes
+  become: yes 
+
+- name: Template KDC Configuration
+  template:
+      src: kdc.j2
+      dest: /etc/krb5kdc/kdc.conf
+      mode: '0644'
+      owner: root
+      group: root
+  become: yes
+
+- name: Template Realm Configuration
+  template:
+      src: krb5.j2
+      dest: /etc/krb5.conf
+      mode: '0644'
+      owner: root
+      group: root
+  become: yes
+
+- name: Template ACL Configuration
+  template:
+      src: kadm5.acl.j2
+      dest: /etc/krb5kdc/kadm5.acl
+      mode: '0644'
+      owner: root
+      group: root
+  become: yes
+  register: acl_templating
+
+- name: Check If Principal Exists
+  stat:
+      path: "{{ PRINCIPAL_LOCATION }}"
+  register: principal_location
+  become: yes
+
+- name: Create Principal Database
+  shell: kdb5_util create -r HOME.LAN -P "{{ REALM_ADMIN_PASS }}" -s
+  when: principal_location.stat.exists == False
+  become: yes 
+
+- name: Collect List Of Kerberos Pools
+  shell: kadmin.local listpols
+  register: pols
+  become: yes
+
+- name: Debug List Of Kerberos Pools
+  debug:
+    msg: "{{ pols }}"
+
+- name: Create Kerberos Pools
+  shell: kadmin.local addpol "{{ item }}"
+  loop: "{{ DEFAULT_POOLS }}"
+  when: item not in pols.stdout_lines
+  become: yes
+
+- name: Collect List Of Kerberos Principals
+  shell: kadmin.local listprincs
+  register: principals
+  become: yes
+
+- name: Debug List Of Kerberos Principals
+  debug:
+    msg: "{{ principals.stdout_lines }}"
+
+- name: Template Users Expect Configuration
+  template:
+      src: users_expect.j2
+      dest: /root/users_expect.exp
+      mode: '0744'
+      owner: root
+      group: root
+  become: yes
+  register: users_expect
+
+- name: Create Principals With Expect 
+  shell: /root/users_expect.exp
+  become: yes
+
+- name: Remove Remote Expect File
+  file:
+    path: /root/users_expect.exp
+    state: absent
+
+- name: Start/Enable Kerberos Services
+  systemd:
+    name: krb5-admin-server
+    state: started
+    enabled: yes
+  when: acl_templating.changed
+  become: yes

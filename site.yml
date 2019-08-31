@@ -1,0 +1,8 @@
+- name: Install Kerberos Server
+  roles:
+   - system 
+   - server
+  vars_files:
+    - "group_vars/main.yml"
+  hosts:
+    krb_server
